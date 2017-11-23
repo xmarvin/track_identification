@@ -55,13 +55,6 @@ class CellValue:
           cr.confidence.add_confidence(cr2.confidence, pos)
           cr2.confidence = cr.confidence
 
-  def calc_distance(self, detector, cv, pos):
-    for crk in self.options:
-      cr = self.options[crk]
-      for cr2k in cv.options:
-        cr2 = cv.options[cr2k]
-        cr2.calc_distance(detector, cr, pos)  
-
 class CellRec:
   def __init__(self, cell, cam = -1):
     self.cell = cell
@@ -70,34 +63,6 @@ class CellRec:
 
   def increase_confidence(self):
     self.confidence.value = self.confidence.value * 2
-
-  def rect_center(rect):
-    cx = int(rect[0] + (rect[2] - rect[0])/2)
-    cy = int(rect[1] + (rect[3] - rect[1])/2)
-    return (cx,cy)
-    
-  def abs_dist(dx,dy):
-    return math.sqrt(dx*dx+dy*dy) 
-
-  def calc_distance(self, detector, cr, pos):
-    if self.cell == cr.cell:
-      self.dx = 0
-      self.dy = 0
-      self.prev_pos = pos
-      self.closest_cell = cr.cell
-    else:
-      rect1 = detector.cams_map[self.cell][self.cam]
-      if self.cam in detector.cams_map[cr.cell]:
-        rect2 = detector.cams_map[cr.cell][self.cam]
-        center1 = CellRec.rect_center(rect1)
-        center2 = CellRec.rect_center(rect2)
-        dx = center1[0] - center2[0]
-        dy = center1[1] - center2[1]
-        if ((self.dx == -1) or (CellRec.abs_dist(dx,dy) < CellRec.abs_dist(self.dx,self.dy))):
-          self.dx = dx
-          self.dy = dy
-          self.prev_pos = pos
-          self.closest_cell = cr.cell
 
   def conf_value(self):
     if self.confidence is None:
@@ -366,11 +331,16 @@ class Detector:
     step_x = float(dx) / steps
     step_y = float(dy) / steps
 
-    cells = [self.reverse_map[(start_x + int(step_x*i),start_y+int(step_y*i),start_cr.cam)] for i in range(1,steps)]
-    return [CellValue(CellRec(cell,start_cr.cam)) for cell in cells]
+    cells = []
+    for i in range(1,steps):
+      key = (start_x + int(step_x*i),start_y+int(step_y*i),start_cr.cam)
+      cv = None
+      if key in self.reverse_map:
+        cv = CellValue(CellRec(self.reverse_map[key],start_cr.cam))
+      cells.append(cv)
+    return cells
 
   def build_tracks_from_detections(self):
-    results = pd.DataFrame()
     df = pd.DataFrame(index=range(self.frames_count))
     for index, row in self.detections.iterrows():
       number = self.get_number_from_row(row)
